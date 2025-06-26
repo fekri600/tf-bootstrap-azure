@@ -1,38 +1,38 @@
-# Terraform Infrastructure Redesign Automation
+# Terraform Blue-Green Deployment on AWS
 
-This repository contains a fully automated Terraform setup to deploy and manage AWS infrastructure for multiple environments (`staging` and `production`). The solution uses workspaces, modular Terraform code, and GitHub Actions for CI/CD automation.
-
----
-
-## 📐 Architecture Overview
-
-The infrastructure is organized into modular components for scalability and maintainability:
-
-- **Bootstrap**: Initializes backend components (S3, DynamoDB) and OIDC GitHub trust setup.
-- **Network Module**: Provisions VPC, subnets, security groups, internet/NAT gateways, route tables, and ALB.
-- **Environment Module**: Deploys EC2 instances via Auto Scaling Group, RDS, Redis, and necessary IAM roles and user data scripts.
-- **CloudWatch Module**: Configures metrics, alarms, log groups, filters, and dashboards for EC2, RDS, and Redis.
-- **Policies & Scripts**: Includes all IAM policies and helper shell scripts (connectivity checks, provider generation, etc.)
+This repository provides a fully automated Terraform-based solution for deploying and managing AWS infrastructure across multiple environments (`staging` and `production`). It leverages Terraform workspaces, modular code architecture, and GitHub Actions for CI/CD automation, following the **Blue-Green deployment strategy** to enable zero-downtime rollouts.
 
 ---
 
-## 🚀 Usage Instructions
+## Architecture Overview
 
-### 1. 🔧 Bootstrap Initialization
+The infrastructure is organized into modular components to ensure scalability, reusability, and ease of maintenance:
 
-Before running the pipeline, you **must bootstrap** the Terraform backend and trust relationship setup for GitHub OIDC:
+- **Bootstrap**: Sets up backend components (S3, DynamoDB) and configures GitHub OIDC trust for secure CI/CD.
+- **Network Module**: Provisions VPC, subnets, internet/NAT gateways, route tables, security groups, and an Application Load Balancer (ALB).
+- **Environment Module**: Deploys EC2 instances via Auto Scaling Groups, configures RDS and Redis, and attaches necessary IAM roles and `user_data` scripts.
+- **CloudWatch Module**: Manages metrics, alarms, dashboards, log groups, and log filters for EC2, RDS, and Redis.
+- **Policies & Scripts**: Includes IAM policy JSONs and shell scripts for connectivity testing, dynamic provider setup, and more.
+
+---
+
+## Getting Started
+
+### Step 1: Bootstrap Initialization
+
+Before deploying any environment, you must initialize the backend and GitHub OIDC trust setup:
 
 ```bash
-make bootstrap
+make deploy-bootstrap
 ```
 
 This will:
-- Create the S3 bucket and DynamoDB table for remote state
-- Output backend values into the `outputs/` directory
-- Set up the GitHub OIDC trust role and permissions
-- Generate `providers.tf` dynamically for authenticated GitHub Actions runs
+- Create an S3 bucket and DynamoDB table for storing remote Terraform state.
+- Generate backend configuration files under the `outputs/` directory.
+- Set up an IAM role with OIDC trust for GitHub Actions.
+- Dynamically generate `providers.tf` for CI/CD execution.
 
-To clean up bootstrap resources:
+To tear down the bootstrap resources:
 
 ```bash
 make delete-bootstrap
@@ -40,42 +40,50 @@ make delete-bootstrap
 
 ---
 
-### 2. 🌍 Environment Deployment via Workspaces
+### Step 2: Environment Deployment Using Workspaces
 
-Each environment (`staging`, `production`) is mapped to a Terraform **workspace** and has its own `.auto.tfvars` file:
-- `staging.auto.tfvars`
-- `production.auto.tfvars`
+Each environment (`staging`, `production`) is mapped to a dedicated Terraform **workspace**, enabling isolated deployments with shared code but environment-specific configurations.  
+The workspace selection and switching are **fully automated by the CI/CD pipeline**, so you don’t need to manage it manually.
 
-This allows isolated deployments using a shared codebase but environment-specific configurations.
+To apply the configuration manually (if needed):
 
----
-
-## ⚙️ GitHub Actions Pipeline
-
-The file `.github/workflows/main.yml` defines the deployment workflow.
-
-### 🏁 Trigger Options:
-
-When manually triggered via GitHub UI:
-- **Environment choice**: `staging`, `production`, or `both`
-- **Action type**: `apply` or `destroy`
-
-### ✅ What the pipeline does:
-
-1. Sets up Terraform with the appropriate version
-2. Configures AWS credentials using GitHub OIDC and the assumed IAM role
-3. Selects or creates the corresponding workspace
-4. Initializes the backend
-5. Validates and formats Terraform files
-6. Applies or destroys the infrastructure using the matching `.auto.tfvars` file
-
----
-
-## 🔌 Connectivity Test Output
-
-After deployment, a connectivity test validates access between components (EC2 to RDS/Redis), IAM authentication, and internet access:
-
+```bash
+terraform workspace select staging || terraform workspace new staging
 ```
+
+Then apply the configuration:
+
+```bash
+terraform apply -auto-approve
+```
+
+---
+
+## GitHub Actions Workflow
+
+The CI/CD pipeline is defined in `.github/workflows/main.yml`.
+
+### Trigger Parameters:
+
+- **Environment**: `staging`, `production`, or `both`
+- **Action**: `apply` or `destroy`
+
+### Pipeline Steps:
+
+1. Set up Terraform with a pinned version.
+2. Authenticate via GitHub OIDC and assume the appropriate IAM role.
+3. Select or create the environment workspace.
+4. Initialize and validate the configuration.
+5. Format and lint Terraform files.
+6. Apply or destroy infrastructure as requested.
+
+---
+
+## Connectivity Test 
+
+Connectivity tests validate communication between deployed components (e.g., EC2 ↔ RDS/Redis), IAM-based authentication, and internet access:
+
+```bash
 -------------------2025-05-28 02:53:20-----------------------
 == START CONNECTIVITY TEST ==
 
@@ -83,27 +91,16 @@ SSM Shell Environment Diagnostics:
 User: root
 Home:
 
-MySQL Defaults:
-mysql would have been started with the following arguments:
-
 Testing RDS Port...
 ✅ RDS port 3306 is reachable
 
 Testing Redis Port...
 ✅ Redis port 6379 is reachable
 
-Ensuring IAM Auth Plugin is configured...
-mysql: [Warning] Using a password on the command line interface can be insecure.
-ERROR 1045 (28000): Access denied for user 'staging_user'@'10.0.12.36' (using password: YES)
-
-Generating RDS IAM Auth Token...
-Testing IAM Authentication...
-mysql: [Warning] Using a password on the command line interface can be insecure.
-NOW()
-2025-05-28 02:53:20
+Testing IAM-based MySQL Authentication...
 ✅ IAM RDS auth succeeded
 
-Testing internet access...
+Testing Internet Access...
 ✅ EC2 instance has internet access
 
 == END CONNECTIVITY TEST ==
@@ -111,15 +108,14 @@ Testing internet access...
 
 ---
 
-## 🧰 Scripts
+## 🧰Utility Scripts
 
-Available helper scripts:
-- `scripts/fetch_ssm_test_logs.sh`: Fetch logs from EC2 instances via SSM
-- `scripts/generate_provider_file.sh`: Generates provider configuration based on bootstrap outputs
+- `scripts/generate_provider_file.sh` – Dynamically generates provider configurations from bootstrap outputs.
+- `scripts/user_data.sh.tmpl` – Template for EC2 initialization scripts.
 
 ---
 
-## 📂 Complete Directory Structure
+## 📁 Directory Structure
 
 ```
 infra_redesign_auto/
@@ -128,56 +124,44 @@ infra_redesign_auto/
 │       └── main.yml
 ├── bootstrap/
 │   ├── backend_setup/
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
 │   ├── oidc/
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   ├── variables.tf
 │   │   └── policies/
-│   │       ├── permission-policy.json
-│   │       └── trust-policy.json
 ├── modules/
 │   ├── cloudwatch/
-│   │   ├── alarms.tf
-│   │   ├── dashboards.tf
-│   │   ├── locals.tf
-│   │   ├── logs.tf
-│   │   └── variables.tf
 │   ├── environment/
-│   │   ├── asg-ec2.tf
-│   │   ├── outputs.tf
-│   │   ├── rds.tf
-│   │   ├── redis.tf
-│   │   └── variables.tf
 │   └── network/
-│       ├── alb.tf
-│       ├── outputs.tf
-│       ├── sg.tf
-│       ├── variables.tf
-│       └── vpc.tf
 ├── policies/
-│   ├── ec2_assume_role_policy.json
-│   └── rds_connect_policy.json
 ├── scripts/
-│   ├── connectivity-test.sh
-│   ├── fetch_ssm_test_logs.sh
-│   ├── generate_provider_file.sh
-│   └── user_data.sh.tmpl
-├── production.auto.tfvars
-├── staging.auto.tfvars
-├── providers.tf
-├── outputs.tf
-├── variables.tf
-├── locals.tf
+├── terraform.auto.tfvars
 ├── main.tf
+├── variables.tf
+├── outputs.tf
+├── locals.tf
+├── providers.tf
 └── Makefile
 ```
 
 ---
 
+##  AWS Cost Estimation
+
+This infrastructure may incur charges depending on region and usage.
+
+### Key Resources Affecting Cost:
+
+| Component        | Cost Driver                  | Notes |
+|------------------|------------------------------|-------|
+| S3 & DynamoDB     | Storage and read/write units | Used for state backend |
+| EC2              | Instance type and hours       | Controlled via ASG |
+| RDS              | Instance type and storage     | Use free tier options if eligible |
+| Redis (ElastiCache) | Instance type               | Not included in free tier |
+| CloudWatch Logs  | Ingestion + retention         | Monitor logs and use filters |
+
+
+---
+
 ## 👨‍💻 Maintainer
 
-**your name**  
-your posation 
+**Fekri Saleh**  
+Cloud Architect & DevOps Engineer  
+
