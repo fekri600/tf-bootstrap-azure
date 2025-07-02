@@ -1,51 +1,26 @@
-
-# Get the current AWS account ID
-data "aws_caller_identity" "current" {}
-
-# Build the OIDC provider ARN dynamically
-
-
-
-
-
-locals {
-
-  oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+# 1. Create an Azure AD App
+resource "azuread_application" "github_app" {
+  display_name = var.app_name
 }
 
+# 2. Service Principal for that App
+resource "azuread_service_principal" "github_sp" {
+  client_id = azuread_application.github_app.client_id
 
-
-# Define the GitHub OIDC provider in AWS (if not already set up)
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = var.oidc_url
-  client_id_list  = var.oidc_client_id_list
-  thumbprint_list = var.oidc_thumbprint_list
 }
 
-
-# Define the IAM role GitHub Actions can assume using OIDC
-resource "aws_iam_role" "github_trust_role" {
-  name = var.iam_role_name
-
-  assume_role_policy = templatefile("${path.module}/policies/trust-policy.json", {
-    oidc_provider_arn = local.oidc_provider_arn
-  })
+# 3. Federated Identity Credential for GitHub Actions
+resource "azuread_application_federated_identity_credential" "github_fic" {
+  application_id = azuread_application.github_app.id
+  display_name   = "${var.app_name}-github-oidc"
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"
+  audiences      = ["api://AzureADTokenExchange"]
 }
 
-
-# Define the IAM policy with necessary permissions
-resource "aws_iam_policy" "github_devops_policy" {
-  name = var.iam_policy_name
-  policy = templatefile("${path.module}/policies/permission-policy.json", {
-    state_bucket_name = var.state_bucket_name
-    state_bucket_name = var.state_bucket_name
-  })
+# 4. Assign role (e.g. Contributor) on the RG so GH Actions can create resources
+resource "azurerm_role_assignment" "github_contributor" {
+  scope                = var.backend_rg_id
+  role_definition_name = "Contributor"
+  principal_id         = azuread_service_principal.github_sp.object_id
 }
-
-
-# Attach the policy to the IAM role
-resource "aws_iam_role_policy_attachment" "github_actions_permissions" {
-  role       = aws_iam_role.github_trust_role.name
-  policy_arn = aws_iam_policy.github_devops_policy.arn
-}
-

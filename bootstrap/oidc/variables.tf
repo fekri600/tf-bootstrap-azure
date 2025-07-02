@@ -1,30 +1,19 @@
-variable "oidc_url" {
-  description = "OIDC provider URL"
+variable "app_name" {
+  description = "Name for the Azure AD application"
   type        = string
 }
 
-variable "oidc_client_id_list" {
-  description = "OIDC client IDs"
-  type        = list(string)
-}
-
-variable "oidc_thumbprint_list" {
-  description = "OIDC thumbprint list"
-  type        = list(string)
-}
-
-variable "iam_role_name" {
-  description = "IAM role name"
+variable "github_repo" {
+  description = "GitHub repo (owner/name) for OIDC subject"
   type        = string
 }
 
-variable "iam_policy_name" {
-  description = "IAM policy name"
+variable "github_branch" {
+  description = "Branch name to trust (e.g. main)"
   type        = string
 }
 
-variable "state_bucket_name" {
-  description = "The name of the S3 state bucket passed from backend_setup module"
+variable "backend_rg_id" {
+  description = "The resource ID of the RG where the role should be assigned"
   type        = string
 }
-

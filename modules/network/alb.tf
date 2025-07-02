@@ -1,92 +1,144 @@
+#################################
+# Public IP for the App Gateway
+#################################
+resource "azurerm_public_ip" "appgw" {
+  name                = "${var.prefix}-${var.environment}-appgw-pip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
 
-# Create an ALB Target Group with health checks configured
-resource "aws_lb_target_group" "tg" {
-  name     = "${var.prefix}-${var.environment}-tg"
-  port     = var.load_balancer.lb_target_group.port
-  protocol = var.load_balancer.lb_target_group.protocol
-  vpc_id   = aws_vpc.this.id
+  allocation_method = "Static"
+  sku               = "Standard"
 
-  health_check {
+  tags = {
+    Name = "${var.prefix}-${var.environment}-appgw-pip"
+  }
+}
+
+#################################
+# Application Gateway (v2)
+#################################
+resource "azurerm_application_gateway" "appgw" {
+  name                = "${var.prefix}-${var.environment}-appgw"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku {
+    name     = "Standard_v2"
+    tier     = "Standard_v2"
+    capacity = var.load_balancer.alb_settings.capacity
+  }
+
+  gateway_ip_configuration {
+    name      = "appgw-ipcfg"
+    subnet_id = azurerm_subnet.public[0].id
+  }
+
+  frontend_port {
+    name = "httpPort"
+    port = var.load_balancer.listener.port.http
+  }
+
+  frontend_ip_configuration {
+    name                 = "appgw-frontendip"
+    public_ip_address_id = azurerm_public_ip.appgw.id
+  }
+
+  #################################
+  # Backend Pool (Target Group)
+  #################################
+  backend_address_pool {
+    name = "appgw-backendpool"
+    # Attach your VMs/VMSS NIC IPs here if static, or leave empty for dynamic
+    # ip_addresses = [azurerm_linux_virtual_machine.vm.*.private_ip_address]
+  }
+
+  #################################
+  # HTTP Settings (port/protocol)
+  #################################
+  backend_http_settings {
+    name                  = "appgw-httpsettings"
+    cookie_based_affinity = "Disabled"
+    port                  = var.load_balancer.lb_target_group.port
+    protocol              = var.load_balancer.lb_target_group.protocol
+    request_timeout       = var.load_balancer.lb_health_check.timeout
+  }
+
+  #################################
+  # Health Probe (Health Check)
+  #################################
+  probe {
+    name                = "appgw-healthprobe"
+    protocol            = var.load_balancer.lb_target_group.protocol
     path                = var.load_balancer.lb_health_check.path
     interval            = var.load_balancer.lb_health_check.interval
     timeout             = var.load_balancer.lb_health_check.timeout
-    healthy_threshold   = var.load_balancer.lb_health_check.healthy_threshold
     unhealthy_threshold = var.load_balancer.lb_health_check.unhealthy_threshold
-    matcher             = var.load_balancer.lb_health_check.matcher
+
+    match {
+      status_codes = [for code in split(",", var.load_balancer.lb_health_check.matcher) : trim(code)]
+    }
+  }
+
+  #################################
+  # Listener & Routing Rule
+  #################################
+  http_listener {
+    name                           = "appgw-httplistener"
+    frontend_ip_configuration_name = "appgw-frontendip"
+    frontend_port_name             = "httpPort"
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = "appgw-reqroutingrule"
+    rule_type                  = "Basic"
+    http_listener_name         = "appgw-httplistener"
+    backend_address_pool_name  = "appgw-backendpool"
+    backend_http_settings_name = "appgw-httpsettings"
+    probe_name                 = "appgw-healthprobe"
   }
 
   tags = {
-    Name = "${var.prefix}-${var.environment}-tg"
+    Name = "${var.prefix}-${var.environment}-appgw"
   }
 }
 
-# Create the Application Load Balancer (ALB)
-resource "aws_lb" "alb" {
-  name                       = "${var.prefix}-${var.environment}-alb"
-  load_balancer_type         = var.load_balancer.alb_settings.load_balancer_type
-  security_groups            = [aws_security_group.alb.id]
-  subnets                    = aws_subnet.public[*].id
-  internal                   = var.load_balancer.alb_settings.internal
-  enable_deletion_protection = var.load_balancer.alb_settings.enable_deletion_protection
-
-  tags = {
-    Name = "${var.prefix}-${var.environment}-alb"
-  }
-}
-
-# Create a listener on the ALB for incoming HTTP/HTTPS traffic
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.alb.arn
-  port              = var.load_balancer.listener.port.http
-  protocol          = var.load_balancer.listener.protocol.http
-
-  default_action {
-    type             = var.load_balancer.listener.action_type
-    target_group_arn = aws_lb_target_group.tg.arn
-  }
-}
-
-# resource "aws_lb_listener" "https" {
-#   load_balancer_arn = aws_lb.alb.arn
-#   port              = var.load_balancer.listener.port.https
-#   protocol          = var.load_balancer.listener.protocol.https
-#   ssl_policy        = "ELBSecurityPolicy-2016-08"
-#   certificate_arn   = aws_acm_certificate.cert.arn
-#   default_action {
-#     type             = var.load_balancer.listener.action_type
-#     target_group_arn = aws_lb_target_group.tg.arn
-#   }
+#################################
+# (Optional) HTTPS / SSL Certificate
+#################################
+# To enable HTTPS, uncomment and provide a PFX:
+#
+# resource "azurerm_application_gateway_ssl_certificate" "cert" {
+#   name      = "appgw-sslcert"
+#   data      = base64encode(file(var.ssl_certificate_pfx_path))
+#   password  = var.ssl_certificate_password
+#   gateway   = azurerm_application_gateway.appgw.name
 # }
-
-# # --------------------------
-# # ACM Certificate
-# # --------------------------
-# resource "aws_acm_certificate" "cert" {
-#   domain_name       = "yourdomain.com"
-#   validation_method = "DNS"
-#   tags = {
-#     Name = "i360moms-com-cert"
-#   }
+#
+# Then add to the AGW:
+# frontend_port { name = "httpsPort"; port = var.load_balancer.listener.port.https }
+# http_listener {
+#   name                           = "appgw-httpslistener"
+#   frontend_ip_configuration_name = "appgw-frontendip"
+#   frontend_port_name             = "httpsPort"
+#   protocol                       = "Https"
+#   ssl_certificate_name           = azurerm_application_gateway_ssl_certificate.cert.name
 # }
+# And update `request_routing_rule` to point at that listener.
 
-# # --------------------------
-# # Route 53 Validation
-# # --------------------------
-# data "aws_route53_zone" "yourdomain" {
-#   name         = "yourdomain.com."
-#   private_zone = false
+#################################
+# (Optional) DNS — Azure DNS Zone & Record
+#################################
+# If you need DNS in Azure instead of Route 53:
+#
+# resource "azurerm_dns_zone" "zone" {
+#   name                = var.domain_name       # e.g. "yourdomain.com"
+#   resource_group_name = var.dns_zone_rg
 # }
-
-# resource "aws_route53_record" "cert_validation" {
-#   name    = aws_acm_certificate.cert.domain_validation_options[0].resource_record_name
-#   type    = aws_acm_certificate.cert.domain_validation_options[0].resource_record_type
-#   zone_id = data.aws_route53_zone.fekri.zone_id
-#   records = [aws_acm_certificate.cert.domain_validation_options[0].resource_record_value]
-#   ttl     = 60
+#
+# resource "azurerm_dns_cname_record" "app" {
+#   name                = var.dns_record_name   # e.g. "www" or "@"
+#   zone_name           = azurerm_dns_zone.zone.name
+#   resource_group_name = var.dns_zone_rg
+#   ttl                 = 300
+#   record              = azurerm_public_ip.appgw.ip_address
 # }
-
-# resource "aws_acm_certificate_validation" "cert" {
-#   certificate_arn         = aws_acm_certificate.cert.arn
-#   validation_record_fqdns = [aws_route53_record.cert_validation.fqdn]
-# }
-

@@ -1,22 +1,31 @@
 terraform {
-  required_version = "1.11.4"
+  required_version = ">= 1.3.0"
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "5.97.0"
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.0"
+    }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = ">= 2.0"
     }
   }
 
-  backend "s3" {
-    bucket         = "backend-s3-bucket-1290"
-    key            = "terraform/state.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "backend-d-db-table"
-    encrypt        = true
+  backend "azurerm" {
+    resource_group_name  = "rg-terraform-backend-1290"
+    storage_account_name = "backendstate1290"
+    container_name       = "tfstate"
+    key                  = "terraform/state.tfstate"
   }
 }
 
-provider "aws" {
-  region = "us-east-1"
+provider "azurerm" {
+  subscription_id = "24772daf-6ca5-4369-9a70-95b863ad85c6"
+  tenant_id       = "aa959dfb-84df-4d8d-8765-6d22e83d7744"
+  features  {}
+}
+
+provider "azuread" {
+  tenant_id = "aa959dfb-84df-4d8d-8765-6d22e83d7744"
 }

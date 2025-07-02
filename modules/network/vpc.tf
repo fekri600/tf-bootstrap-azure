@@ -1,99 +1,71 @@
-# Create the VPC with DNS support and custom tag
-resource "aws_vpc" "this" {
-  cidr_block           = var.network.vpc_cidr
-  enable_dns_support   = var.network.enable_dns_support
-  enable_dns_hostnames = var.network.enable_dns_hostnames
-  tags                 = { Name = "${var.prefix}-${var.environment}-vpc-${substr(var.project_settings.aws_region, 0, 2)}" }
-}
-
-# Create public subnets in specified availability zones
-resource "aws_subnet" "public" {
-  count             = length(var.network.public_subnets)
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.network.public_subnets[count.index]
-  availability_zone = var.network.availability_zones[count.index]
-  tags              = { Name = "${var.prefix}-${var.environment}-pub-subnet-${substr(var.network.availability_zones[count.index], length(var.network.availability_zones[count.index]) - 1, 1)}" }
-}
-
-# Create private subnets in specified availability zones
-resource "aws_subnet" "private" {
-  count             = length(var.network.private_subnets)
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.network.private_subnets[count.index]
-  availability_zone = var.network.availability_zones[count.index]
-  tags              = { Name = "${var.prefix}-${var.environment}-priv-subnet-${substr(var.network.availability_zones[count.index], length(var.network.availability_zones[count.index]) - 1, 1)}" }
-}
-
-# Attach an Internet Gateway to the VPC for public internet access
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-  tags   = { Name = "${var.prefix}-${var.environment}-igw-${substr(var.project_settings.aws_region, 0, 2)}" }
-}
-
-# Allocate Elastic IPs for NAT Gateways
-resource "aws_eip" "nat" {
-  count  = length(var.network.public_subnets)
-  domain = var.network.eip_domain
-  tags   = { Name = "${var.prefix}-${var.environment}-nat-ip" }
-}
-
-# Create NAT Gateways in public subnets to allow private subnets to access the internet
-resource "aws_nat_gateway" "this" {
-  count         = length(var.network.public_subnets)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-  tags          = { Name = "${var.prefix}-${var.environment}-gtw-nat-${substr(var.network.availability_zones[count.index], length(var.network.availability_zones[count.index]) - 1, 1)}" }
-}
-
-# Create route tables for private subnets with route to NAT Gateway
-resource "aws_route_table" "private" {
-  count  = length(var.network.private_subnets)
-  vpc_id = aws_vpc.this.id
-
-  route {
-    cidr_block     = var.network.default_route_cidr_block
-    nat_gateway_id = aws_nat_gateway.this[count.index].id
-  }
+# ────────── Virtual Network (VN) ──────────
+resource "azurerm_virtual_network" "this" {
+  name                = "${var.prefix}-${var.environment}-vnet-${substr(var.location,0,2)}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  address_space       = [ var.network.vpc_cidr ]
 
   tags = {
-    Name = "${var.prefix}-${var.environment}-priv-route-${substr(var.network.availability_zones[count.index], length(var.network.availability_zones[count.index]) - 1, 1)}"
+    Name = "${var.prefix}-${var.environment}-vnet-${substr(var.location,0,2)}"
   }
 }
 
-# Associate private subnets with their corresponding private route tables
-resource "aws_route_table_association" "private" {
-  count          = length(var.network.private_subnets)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+# ────────── Public Subnets ──────────
+resource "azurerm_subnet" "public" {
+  count               = length(var.network.public_subnets)
+  name                = "${var.prefix}-${var.environment}-pub-subnet-${substr(var.network.availability_zones[count.index], -1, 1)}"
+  resource_group_name = var.resource_group_name
+  virtual_network_name= azurerm_virtual_network.this.name
+  address_prefixes    = [ var.network.public_subnets[count.index] ]
+
+  # no NAT on public subnets—VMs get public IPs directly
+  # you could also attach a route table here if desired
 }
 
-# Create a public route table with a default route to the Internet Gateway
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
+# ────────── Private Subnets ──────────
+resource "azurerm_subnet" "private" {
+  count               = length(var.network.private_subnets)
+  name                = "${var.prefix}-${var.environment}-priv-subnet-${substr(var.network.availability_zones[count.index], -1, 1)}"
+  resource_group_name = var.resource_group_name
+  virtual_network_name= azurerm_virtual_network.this.name
+  address_prefixes    = [ var.network.private_subnets[count.index] ]
+}
 
-  route {
-    cidr_block = var.network.default_route_cidr_block
-    gateway_id = aws_internet_gateway.this.id
+# ────────── Public IPs for NAT Gateway ──────────
+resource "azurerm_public_ip" "nat" {
+  count               = length(var.network.public_subnets)
+  name                = "${var.prefix}-${var.environment}-nat-ip-${count.index}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = {
+    Name = "${var.prefix}-${var.environment}-nat-ip-${count.index}"
   }
-
-  tags = { Name = "${var.prefix}-${var.environment}-pub-route-${substr(var.project_settings.aws_region, 0, 2)}" }
 }
 
-# Associate public subnets with the public route table
-resource "aws_route_table_association" "public" {
-  count          = length(var.network.public_subnets)
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
+# ────────── NAT Gateways ──────────
+resource "azurerm_nat_gateway" "this" {
+  count               = length(var.network.public_subnets)
+  name                = "${var.prefix}-${var.environment}-nat-${substr(var.location,0,2)}-${count.index}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  sku_name                = "Standard"
+  public_ip_address_ids   = [ azurerm_public_ip.nat[count.index].id ]
+
+  tags = {
+    Name = "${var.prefix}-${var.environment}-nat-${substr(var.location,0,2)}-${count.index}"
+  }
 }
 
-# Create an RDS Subnet Group using private subnets
-resource "aws_db_subnet_group" "rds" {
-  name       = "${var.prefix}-${var.environment}-rds-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
+# ────────── Attach NAT Gateway to Private Subnets ──────────
+resource "azurerm_subnet_nat_gateway_association" "private" {
+  count             = length(var.network.private_subnets)
+  subnet_id         = azurerm_subnet.private[count.index].id
+  nat_gateway_id    = azurerm_nat_gateway.this[count.index].id
 }
 
-# Create an ElastiCache Subnet Group using private subnets
-resource "aws_elasticache_subnet_group" "redis" {
-  name       = "${var.prefix}-${var.environment}-redis-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
-}
+# 

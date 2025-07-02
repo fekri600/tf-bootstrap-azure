@@ -1,48 +1,23 @@
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = var.state_bucket_name
-  tags   = var.state_bucket_tags
-
+resource "azurerm_resource_group" "terraform_state_rg" {
+  name     = var.resource_group_name
+  location = var.location
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state_encryption" {
-  bucket = aws_s3_bucket.terraform_state.id
+resource "azurerm_storage_account" "terraform_state_sa" {
+  name                       = var.storage_account_name
+  resource_group_name        = azurerm_resource_group.terraform_state_rg.name
+  location                   = azurerm_resource_group.terraform_state_rg.location
+  account_tier               = var.account_tier
+  account_replication_type   = var.replication_type
+  https_traffic_only_enabled = true
 
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = var.state_bucket_sse_algorithm
-    }
+  blob_properties {
+    versioning_enabled = var.enable_versioning
   }
 }
 
-
-resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  versioning_configuration {
-    status = var.state_bucket_versioning_enabled
-  }
-}
-
-
-
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket                  = aws_s3_bucket.terraform_state.id
-  block_public_acls       = var.block_public_acls
-  block_public_policy     = var.block_public_policy
-  ignore_public_acls      = var.ignore_public_acls
-  restrict_public_buckets = var.restrict_public_buckets
-}
-
-
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = var.dynamodb_table_name
-  billing_mode = var.dynamodb_billing_mode
-  hash_key     = var.dynamodb_hash_key
-
-  attribute {
-    name = var.dynamodb_hash_key
-    type = var.dynamodb_attribute_type
-  }
-
-  tags = var.dynamodb_table_tags
+resource "azurerm_storage_container" "terraform_state_container" {
+  name                  = var.container_name
+  storage_account_id    = azurerm_storage_account.terraform_state_sa.id
+  container_access_type = "private"
 }

@@ -1,81 +1,59 @@
-variable "state_bucket_name" {
-  description = "S3 bucket name for Terraform state"
+# ────────────── Backend Setup ──────────────
+
+variable "resource_group_name" {
+  description = "Name of the Azure Resource Group for Terraform state backend"
   type        = string
 }
 
-variable "state_bucket_versioning_enabled" {
-  description = "Enable versioning on S3 bucket"
+variable "location" {
+  description = "Azure region where resources will be created"
   type        = string
 }
 
-variable "state_bucket_sse_algorithm" {
-  description = "SSE algorithm for S3 bucket encryption"
+variable "storage_account_name" {
+  description = "Globally-unique Storage Account name (3–24 lowercase letters/numbers)"
   type        = string
 }
 
-variable "state_bucket_tags" {
-  description = "Tags for S3 bucket"
-  type        = map(string)
+variable "account_tier" {
+  description = "Storage account tier"
+  type        = string
+  default     = "Standard"
 }
 
-variable "public_access_block_config" {
-  description = "Public access block settings for the S3 bucket"
-  type = object({
-    block_public_acls       = bool
-    block_public_policy     = bool
-    ignore_public_acls      = bool
-    restrict_public_buckets = bool
-  })
+variable "replication_type" {
+  description = "Storage account replication type"
+  type        = string
+  default     = "LRS"
 }
 
+variable "enable_versioning" {
+  description = "Enable blob versioning on the storage account"
+  type        = bool
+  default     = true
+}
 
+variable "container_name" {
+  description = "Blob container name for Terraform state"
+  type        = string
+  default     = "tfstate"
+}
 
-variable "dynamodb_table_name" {
-  description = "DynamoDB table name for state locking"
+# ────────────── OIDC / GitHub Actions ──────────────
+
+variable "app_name" {
+  description = "Name of the Azure AD Application for GitHub OIDC"
   type        = string
 }
 
-variable "dynamodb_billing_mode" {
-  description = "Billing mode for DynamoDB table"
+variable "github_repo" {
+  description = "GitHub repo to trust (format: owner/name)"
   type        = string
 }
 
-variable "dynamodb_hash_key" {
-  description = "Hash key attribute name for DynamoDB table"
+variable "github_branch" {
+  description = "Branch name to trust for OIDC tokens (e.g. main)"
   type        = string
 }
 
-variable "dynamodb_attribute_type" {
-  description = "Type for hash key attribute"
-  type        = string
-}
 
-variable "dynamodb_table_tags" {
-  description = "Tags for DynamoDB table"
-  type        = map(string)
-}
-
-variable "oidc_url" {
-  description = "OIDC provider URL"
-  type        = string
-}
-
-variable "oidc_client_id_list" {
-  description = "OIDC client IDs"
-  type        = list(string)
-}
-
-variable "oidc_thumbprint_list" {
-  description = "OIDC thumbprint list"
-  type        = list(string)
-}
-
-variable "iam_role_name" {
-  description = "IAM role name"
-  type        = string
-}
-
-variable "iam_policy_name" {
-  description = "IAM policy name"
-  type        = string
-}

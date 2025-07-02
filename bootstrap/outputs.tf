@@ -1,23 +1,22 @@
-# modules/backend_setup/outputs.tf
-
-
-output "region" {
-  value = module.backend_setup.region
+output "resource_group_name" {
+  description = "RG where Terraform state is stored"
+  value       = module.backend_setup.resource_group_name
 }
 
-output "bucket_name" {
-  value = module.backend_setup.bucket_name
+output "storage_account_name" {
+  description = "Storage Account used for state"
+  value       = module.backend_setup.storage_account_name
 }
 
-output "dynamodb_table_name" {
-  value = module.backend_setup.dynamodb_table_name
+output "container_name" {
+  description = "Blob container used for state"
+  value       = module.backend_setup.container_name
 }
 
-output "TRUST_ROLE_GITHUB" {
-  description = "The ARN of the IAM role GitHub Actions can assume"
-  value       = module.oidc.TRUST_ROLE_GITHUB
+output "app_id" {
+  value = module.oidc.app_id
 }
 
-output "debug_state_bucket_name" {
-  value = module.oidc.debug_state_bucket_name
+output "service_principal_id" {
+  value = module.oidc.service_principal_id
 }
