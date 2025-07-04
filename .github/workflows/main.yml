@@ -44,13 +44,12 @@ jobs:
       - name: Install Make (optional)
         run: sudo apt-get update && sudo apt-get install -y make
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Login to Azure via OIDC
+        uses: azure/login@v1
         with:
-          role-to-assume: ${{ secrets.TRUST_ROLE_GITHUB }}
-          aws-region: us-east-1
-          role-session-name: GitHubActions-${{ github.run_id }}
-          role-duration-seconds: 3600
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Run Terraform for selected environment(s)
         run: |
