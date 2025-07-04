@@ -80,6 +80,4 @@ jobs:
             fi
           done
 
-        env:
-          STAG_PASS: ${{ secrets.STAG_DB_PASS }}
-          PROD_PASS: ${{ secrets.PROD_DB_PASS }}
+       
