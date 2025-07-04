@@ -1,4 +1,4 @@
-name: Terraform Deployment to AWS
+name: Terraform Deployment to Azure
 
 on:
   workflow_dispatch:
@@ -11,7 +11,6 @@ on:
           - both
           - staging
           - production
-          
       destroy:
         description: 'Set true to destroy the environment'
         required: false
@@ -22,7 +21,7 @@ on:
           - 'true'
 
 permissions:
-  id-token: write
+  id-token: write     # needed for OIDC login
   contents: read
 
 jobs:
@@ -47,28 +46,30 @@ jobs:
       - name: Login to Azure via OIDC
         uses: azure/login@v1
         with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Run Terraform for selected environment(s)
+        shell: bash
         run: |
           set -euo pipefail
 
+          # pick staging/production/both
           if [[ "${{ github.event.inputs.environment }}" == "both" ]]; then
             ENVIRONMENTS=("staging" "production")
           else
             ENVIRONMENTS=("${{ github.event.inputs.environment }}")
           fi
 
-          # ✅ First: initialize Terraform backend
+          # initialize against Azure backend
           terraform init -input=false -reconfigure
 
           for ENV in "${ENVIRONMENTS[@]}"; do
-            echo "Deploying environment: $ENV"
+            echo "==> Deploying environment: $ENV"
 
-            # ✅ Then: select or create workspace
-            terraform workspace select $ENV || terraform workspace new $ENV
+            # select or create workspace
+            terraform workspace select "$ENV" || terraform workspace new "$ENV"
 
             terraform validate
 
@@ -79,4 +80,3 @@ jobs:
             fi
           done
 
-       
