@@ -13,7 +13,4 @@ variable "github_branch" {
   type        = string
 }
 
-variable "backend_rg_id" {
-  description = "The resource ID of the RG where the role should be assigned"
-  type        = string
-}
+
