@@ -22,7 +22,7 @@ storage_account_name = "backendstate1290"
 app_name = "TRUST_ROLE_GITHUB"
 
 # GitHub repo and branch to trust for OIDC tokens
-github_repo   = "fekri600/tf-azure-bluegreen-deploy"
+github_repo   = "fekri600/tf-bootstrap-azure"
 github_branch = "main"
 
 
