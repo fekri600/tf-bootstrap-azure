@@ -7,7 +7,6 @@ variable "project_settings" {
   })
 }
 
-# modules/network/variables.tf
 variable "network" {
   description = "Network layout per environment"
   type = map(object({
