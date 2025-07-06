@@ -33,7 +33,6 @@ resource "azurerm_subnet" "private" {
 
 # ────────── Public IPs for NAT Gateway ──────────
 resource "azurerm_public_ip" "nat" {
-  count               = length(var.network.public_subnets)
   name                = "${var.project_settings.name_prefix}-${var.environment}-nat-ip-${count.index}"
   resource_group_name = var.resource_group_name
   location            = var.project_settings.location
