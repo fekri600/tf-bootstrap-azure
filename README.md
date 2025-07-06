@@ -1,167 +1,162 @@
-# Terraform Blue-Green Deployment on AWS
 
-This repository provides a fully automated Terraform-based solution for deploying and managing AWS infrastructure across multiple environments (`staging` and `production`). It leverages Terraform workspaces, modular code architecture, and GitHub Actions for CI/CD automation, following the **Blue-Green deployment strategy** to enable zero-downtime rollouts.
+# Terraform Deployment to Azure — CI/CD Bootstrap Automation
+
+This repository demonstrates an automated and reusable way to **bootstrap** your Azure infrastructure for Terraform-based deployments using **GitHub Actions and OIDC authentication**. It includes everything needed to set up:
+
+- A **remote backend** (Storage Account, Blob container, Resource Group) for Terraform state.
+- An **OIDC trust chain** between Azure AD and GitHub to allow secure pipeline authentication without manual secret management.
+- A **network module** for validating deployments using multi-environment workspaces (e.g., `staging` and `production`).
+
+> This repo is not a full infrastructure project. It's a **template or tip** to automate the foundational setup that is often manually configured (e.g., getting subscription ID, tenant ID, client ID, etc.).
 
 ---
 
 ## Architecture Overview
 
-The infrastructure is organized into modular components to ensure scalability, reusability, and ease of maintenance:
+![Architecture Diagram](./azue-bootstrap.png)
 
-- **Bootstrap**: Sets up backend components (S3, DynamoDB) and configures GitHub OIDC trust for secure CI/CD.
-- **Network Module**: Provisions VPC, subnets, internet/NAT gateways, route tables, security groups, and an Application Load Balancer (ALB).
-- **Environment Module**: Deploys EC2 instances via Auto Scaling Groups, configures RDS and Redis, and attaches necessary IAM roles and `user_data` scripts.
-- **CloudWatch Module**: Manages metrics, alarms, dashboards, log groups, and log filters for EC2, RDS, and Redis.
-- **Policies & Scripts**: Includes IAM policy JSONs and shell scripts for connectivity testing, dynamic provider setup, and more.
+This flow automates:
+- **Bootstrap Phase**: Using `make deploy-bootstrap`, it provisions:
+  - Terraform state backend (Storage Account, Container, Resource Group).
+  - Azure AD Application + Service Principal + Federated Identity Credential.
+  - Role Assignment for GitHub OIDC trust.
+
+- **Deployment Phase**:
+  - Uses GitHub Actions to authenticate via OIDC.
+  - Supports `staging`, `production`, or `both` workspaces.
+  - Deploys a basic VNet module (with public/private subnets) to validate the pipeline.
+
+---
+
+## Repository Structure
+
+```bash
+.
+├── bootstrap/
+│   ├── backend_setup/       # Module to set up remote backend
+│   ├── oidc/                # Module to configure OIDC trust
+│   └── outputs/             # Generated files & backend secrets
+├── modules/
+│   └── network/             # Basic VNet with subnets (for testing)
+├── scripts/
+│   ├── generate_backend_provider.sh
+│   └── generate_provider_file.sh
+├── .github/workflows/
+│   └── main.yml             # GitHub Actions workflow
+├── main.tf / variables.tf / outputs.tf / providers.tf
+├── Makefile                 # Bootstrap automation
+└── README.md
+```
 
 ---
 
 ## Getting Started
 
-### Step 1: Bootstrap Initialization
+### 1. Bootstrap the Azure Backend + OIDC
 
-Before deploying any environment, you must initialize the backend and GitHub OIDC trust setup:
+Make sure you're logged into Azure CLI, then run:
 
 ```bash
 make deploy-bootstrap
 ```
 
-This will:
-- Create an S3 bucket and DynamoDB table for storing remote Terraform state.
-- Generate backend configuration files under the `outputs/` directory.
-- Set up an IAM role with OIDC trust for GitHub Actions.
-- Dynamically generate `providers.tf` for CI/CD execution.
+This command will:
 
-To tear down the bootstrap resources:
+- Save your Azure `subscription_id`, `tenant_id`.
+- Create remote backend resources and OIDC trust.
+- Generate and store provider files.
+- Push GitHub secrets securely using `gh secret set`.
+
+> You must have the [GitHub CLI](https://cli.github.com/) installed and authenticated.
+
+### 2. Deploy Infrastructure via GitHub Actions
+
+You can trigger the pipeline manually via the **Actions tab** or API:
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:  # Choose from 'staging', 'production', or 'both'
+      destroy:      # Optional: 'true' to destroy the environment
+```
+
+Or manually trigger using `gh` CLI:
+
+```bash
+gh workflow run main.yml -f environment=staging -f destroy=false
+```
+
+---
+
+## Example Use Case
+
+A sample `network` module is included to validate that:
+
+- Terraform can access the remote backend.
+- GitHub Actions can authenticate with Azure via OIDC.
+- Environment-specific resources (VNet, subnets) can be deployed using workspaces.
+
+---
+
+## Environment Configurations
+
+Defined in `variables.tf` as:
+
+```hcl
+network = {
+  staging = {
+    vnet_cidr = "10.0.0.0/16"
+    ...
+  }
+  production = {
+    vnet_cidr = "10.1.0.0/16"
+    ...
+  }
+}
+```
+
+---
+
+## Cleanup
+
+To destroy all bootstrapped infrastructure:
 
 ```bash
 make delete-bootstrap
 ```
 
----
-
-### Step 2: Environment Deployment Using Workspaces
-
-Each environment (`staging`, `production`) is mapped to a dedicated Terraform **workspace**, enabling isolated deployments with shared code but environment-specific configurations.  
-The workspace selection and switching are **fully automated by the CI/CD pipeline**, so you don’t need to manage it manually.
-
-To apply the configuration manually (if needed):
-
-```bash
-terraform workspace select staging || terraform workspace new staging
-```
-
-Then apply the configuration:
-
-```bash
-terraform apply -auto-approve
-```
+This will:
+- Destroy all resources created during bootstrap.
+- Remove all local secrets and temporary files.
 
 ---
 
-## GitHub Actions Workflow
+## Security Notes
 
-The CI/CD pipeline is defined in `.github/workflows/main.yml`.
-
-### Trigger Parameters:
-
-- **Environment**: `staging`, `production`, or `both`
-- **Action**: `apply` or `destroy`
-
-### Pipeline Steps:
-
-1. Set up Terraform with a pinned version.
-2. Authenticate via GitHub OIDC and assume the appropriate IAM role.
-3. Select or create the environment workspace.
-4. Initialize and validate the configuration.
-5. Format and lint Terraform files.
-6. Apply or destroy infrastructure as requested.
+- Uses GitHub OIDC with short-lived tokens.
+- Avoids hardcoded secrets in provider files.
+- Uses `gh secret` to manage credentials securely.
 
 ---
 
-## Connectivity Test 
+## Requirements
 
-Connectivity tests validate communication between deployed components (e.g., EC2 ↔ RDS/Redis), IAM-based authentication, and internet access:
-
-```bash
--------------------2025-05-28 02:53:20-----------------------
-== START CONNECTIVITY TEST ==
-
-SSM Shell Environment Diagnostics:
-User: root
-Home:
-
-Testing RDS Port...
-✅ RDS port 3306 is reachable
-
-Testing Redis Port...
-✅ Redis port 6379 is reachable
-
-Testing IAM-based MySQL Authentication...
-✅ IAM RDS auth succeeded
-
-Testing Internet Access...
-✅ EC2 instance has internet access
-
-== END CONNECTIVITY TEST ==
-```
+- Terraform ≥ 1.3.0
+- Azure CLI
+- GitHub CLI (`gh`)
+- Permissions to create Azure AD apps and assign roles
 
 ---
 
-## 🧰Utility Scripts
+## Acknowledgment
 
-- `scripts/generate_provider_file.sh` – Dynamically generates provider configurations from bootstrap outputs.
-- `scripts/user_data.sh.tmpl` – Template for EC2 initialization scripts.
-
----
-
-## 📁 Directory Structure
-
-```
-infra_redesign_auto/
-├── .github/
-│   └── workflows/
-│       └── main.yml
-├── bootstrap/
-│   ├── backend_setup/
-│   ├── oidc/
-│   │   └── policies/
-├── modules/
-│   ├── cloudwatch/
-│   ├── environment/
-│   └── network/
-├── policies/
-├── scripts/
-├── terraform.auto.tfvars
-├── main.tf
-├── variables.tf
-├── outputs.tf
-├── locals.tf
-├── providers.tf
-└── Makefile
-```
+This repo serves as a clean pattern to avoid hardcoding Azure credentials and secret values, and to encourage automated, repeatable DevOps practices using GitHub Actions and native Azure support for OIDC.
 
 ---
 
-##  AWS Cost Estimation
-
-This infrastructure may incur charges depending on region and usage.
-
-### Key Resources Affecting Cost:
-
-| Component        | Cost Driver                  | Notes |
-|------------------|------------------------------|-------|
-| S3 & DynamoDB     | Storage and read/write units | Used for state backend |
-| EC2              | Instance type and hours       | Controlled via ASG |
-| RDS              | Instance type and storage     | Use free tier options if eligible |
-| Redis (ElastiCache) | Instance type               | Not included in free tier |
-| CloudWatch Logs  | Ingestion + retention         | Monitor logs and use filters |
-
-
----
-
-## 👨‍💻 Maintainer
+## Author
 
 **Fekri Saleh**  
-Cloud Architect & DevOps Engineer  
-
+Email: fekri.saleh@ucalgary.ca  
+[LinkedIn](https://linkedin.com/in/your-profile) | [GitHub](https://github.com/fekri600)
