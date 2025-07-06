@@ -1,6 +1,6 @@
 # ────────── Virtual Network (VN) ──────────
 resource "azurerm_virtual_network" "this" {
-  name                = "${var.project_settings.name_prefix}-${var.environment}-vnet-${substr(var.project_settings.location, 0, 2)}"
+  name                = "${var.project_settings.name_prefix}-${var.environment}-vnet-${var.project_settings.location}"
   resource_group_name = var.resource_group_name
   location            = var.project_settings.location
   address_space       = [var.network.vnet_cidr]
