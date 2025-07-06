@@ -145,7 +145,6 @@ This will:
 - Terraform ≥ 1.3.0
 - Azure CLI
 - GitHub CLI (`gh`)
-- Permissions to create Azure AD apps and assign roles
 
 ---
 
