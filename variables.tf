@@ -15,7 +15,6 @@ variable "network" {
     private_subnets          = list(string) # address_prefixes for azurerm_subnet.private
     availability_zones       = list(string) # zones = var.network[...].availability_zones for VMSS/Nat GW
     default_route_cidr_block = string       # used in NSG egress rules (0.0.0.0/0)
-    resource_group_name      = string       # used in azurerm_virtual_network
   }))
 }
 
