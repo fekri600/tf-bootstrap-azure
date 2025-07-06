@@ -41,7 +41,7 @@ resource "azurerm_public_ip" "nat" {
   sku               = "Standard"
 
   tags = {
-    Name = "${var.project_settings.location}-${var.environment}-nat-ip-${count.index}"
+    Name = "${var.project_settings.location}-${var.environment}-nat-ip"
   }
 }
 
