@@ -61,7 +61,7 @@ resource "azurerm_nat_gateway" "this" {
 # ────────── Associate Public IP with NAT Gateway ──────────
 resource "azurerm_nat_gateway_public_ip_association" "this" {
   nat_gateway_id       = azurerm_nat_gateway.this.id
-  public_ip_address_id = azurerm_public_ip.nat[0].id
+  public_ip_address_id = azurerm_public_ip.nat.id
 }
 
 # ────────── Attach NAT Gateway to Private Subnets ──────────
