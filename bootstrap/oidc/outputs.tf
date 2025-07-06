@@ -10,6 +10,6 @@ output "service_principal_id" {
 
 output "resource_group_name" {
   description = "resource group"
-  value = azurerm_resource_group.network.id
+  value = azurerm_resource_group.network.name
   
 }

@@ -13,7 +13,7 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "/subscriptions/24772daf-6ca5-4369-9a70-95b863ad85c6/resourceGroups/i2507cloud"
+    resource_group_name  = "i2507cloud"
     storage_account_name = "backendstate1290"
     container_name       = "tfstate"
     key                  = "terraform/state.tfstate"
