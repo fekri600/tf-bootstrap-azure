@@ -4,4 +4,5 @@ locals {
   name_prefix = var.project_settings.name_prefix
   #paths
   scripts  = "${path.root}/scripts"
+  bootstrap_output = "$path.root/bootsrap/output"
 }

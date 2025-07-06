@@ -13,4 +13,12 @@ variable "github_branch" {
   type        = string
 }
 
+variable "resource_group_name" {
+  description = "Name of the Azure Resource Group for Terraform state backend"
+  type        = string
+}
 
+variable "location" {
+  description = "Azure region for the RG"
+  type        = string
+}

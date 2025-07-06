@@ -7,3 +7,9 @@ output "service_principal_id" {
   description = "Service Principal ID that GitHub Actions will use"
   value       = azuread_service_principal.github_sp.id
 }
+
+output "resource_group_name" {
+  description = "resource group"
+  value = azurerm_resource_group.network.id
+  
+}

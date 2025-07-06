@@ -1,6 +1,6 @@
 module "backend_setup" {
   source               = "./backend_setup"
-  resource_group_name  = var.resource_group_name
+  resource_group_name  = var.resource_group_name_backend
   location             = var.location
   storage_account_name = var.storage_account_name
   account_tier         = var.account_tier
@@ -11,7 +11,11 @@ module "backend_setup" {
 
 module "oidc" {
   source        = "./oidc"
+  location      = var.location
   app_name      = var.app_name
   github_repo   = var.github_repo
-  github_branch = var.github_branch
-} 
+  github_branch = var.github_branch 
+
+  # <-- use the module output you just emitted:
+  resource_group_name = var.resource_group_name_infra
+}

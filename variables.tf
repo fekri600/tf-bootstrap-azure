@@ -10,7 +10,7 @@ variable "project_settings" {
 variable "network" {
   description = "Network layout per environment"
   type = map(object({
-    vpc_cidr                 = string       # address_space for azurerm_virtual_network
+    vnet_cidr                 = string       # address_space for azurerm_virtual_network
     public_subnets           = list(string) # address_prefixes for azurerm_subnet.public
     private_subnets          = list(string) # address_prefixes for azurerm_subnet.private
     availability_zones       = list(string) # zones = var.network[...].availability_zones for VMSS/Nat GW

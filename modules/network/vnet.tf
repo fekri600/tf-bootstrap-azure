@@ -1,20 +1,20 @@
 # ────────── Virtual Network (VN) ──────────
 resource "azurerm_virtual_network" "this" {
   name                = "${var.project_settings.name_prefix}-${var.environment}-vnet-${substr(var.project_settings.location, 0, 2)}"
-  resource_group_name = "${var.project_settings.project}-${var.network.resource_group_name}"
+  resource_group_name = var.resource_group_name
   location            = var.project_settings.location
-  address_space       = [var.network.vpc_cidr]
+  address_space       = [var.network.vnet_cidr]
 
   tags = {
-    Name = "${var.project_settings.name_prefix}-${var.environment}-vnet-${substr(var.project_settings.location, 0, 2)}"
+    Name = "${var.project_settings.name_prefix}-${var.environment}-vnet-${var.project_settings.location}"
   }
 }
 
 # ────────── Public Subnets ──────────
 resource "azurerm_subnet" "public" {
   count                = length(var.network.public_subnets)
-  name                 = "${var.project_settings.name_prefix}-${var.environment}-pub-subnet-${substr(var.network.availability_zones[count.index], -1, 1)}"
-  resource_group_name  = "${var.project_settings.project}-${var.network.resource_group_name}"
+  name                 = "${var.project_settings.name_prefix}-${var.environment}-pub-subnet-${var.network.availability_zones[count.index]}"
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.network.public_subnets[count.index]]
 
@@ -25,8 +25,8 @@ resource "azurerm_subnet" "public" {
 # ────────── Private Subnets ──────────
 resource "azurerm_subnet" "private" {
   count                = length(var.network.private_subnets)
-  name                 = "${var.project_settings.name_prefix}-${var.environment}-priv-subnet-${substr(var.network.availability_zones[count.index], -1, 1)}"
-  resource_group_name  = "${var.project_settings.project}-${var.network.resource_group_name}"
+  name                 = "${var.project_settings.name_prefix}-${var.environment}-priv-subnet-${var.network.availability_zones[count.index]}"
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.network.private_subnets[count.index]]
 }
@@ -35,7 +35,7 @@ resource "azurerm_subnet" "private" {
 resource "azurerm_public_ip" "nat" {
   count               = length(var.network.public_subnets)
   name                = "${var.project_settings.name_prefix}-${var.environment}-nat-ip-${count.index}"
-  resource_group_name = "${var.project_settings.project}-${var.network.resource_group_name}"
+  resource_group_name = var.resource_group_name
   location            = var.project_settings.location
 
   allocation_method = "Static"
@@ -48,14 +48,14 @@ resource "azurerm_public_ip" "nat" {
 
 # ────────── NAT Gateways ──────────
 resource "azurerm_nat_gateway" "this" {
-  name                = "${var.project_settings.name_prefix}-${var.environment}-nat-${substr(var.project_settings.location, 0, 2)}"
-  resource_group_name = "${var.project_settings.project}-${var.network.resource_group_name}"
+  name                = "${var.project_settings.name_prefix}-${var.environment}-nat-${var.project_settings.location}"
+  resource_group_name = var.resource_group_name
   location            = var.project_settings.location
 
   sku_name = "Standard"
 
   tags = {
-    Name = "${var.project_settings.name_prefix}-${var.environment}-nat-${substr(var.project_settings.location, 0, 2)}"
+    Name = "${var.project_settings.name_prefix}-${var.environment}-nat-${var.project_settings.location}"
   }
 }
 

@@ -1,10 +1,13 @@
 # ────────────── Backend Setup ──────────────
 
-variable "resource_group_name" {
+variable "resource_group_name_backend" {
   description = "Name of the Azure Resource Group for Terraform state backend"
   type        = string
 }
-
+variable "resource_group_name_infra" {
+  description = "Name of the Azure Resource Group for deployed infrastrcture"
+  type        = string
+}
 variable "location" {
   description = "Azure region where resources will be created"
   type        = string
@@ -55,5 +58,4 @@ variable "github_branch" {
   description = "Branch name to trust for OIDC tokens (e.g. main)"
   type        = string
 }
-
 

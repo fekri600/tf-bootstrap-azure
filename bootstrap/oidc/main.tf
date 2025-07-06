@@ -1,4 +1,8 @@
-data "azurerm_subscription" "current" {}
+resource "azurerm_resource_group" "network" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
 
 # 1. Create an Azure AD App
 resource "azuread_application" "github_app" {
@@ -22,7 +26,7 @@ resource "azuread_application_federated_identity_credential" "github_fic" {
 
 # 4. Assign role (e.g. Contributor) on the RG so GH Actions can create resources
 resource "azurerm_role_assignment" "github_contributor" {
-  scope                = data.azurerm_subscription.current.id
+  scope                = azurerm_resource_group.network.id
   role_definition_name = "Contributor"
   principal_id         = azuread_service_principal.github_sp.object_id
 }

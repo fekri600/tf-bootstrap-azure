@@ -1,4 +1,4 @@
-output "resource_group_name" {
+output "resource_group_name_backend" {
   description = "RG where Terraform state is stored"
   value       = module.backend_setup.resource_group_name
 }
@@ -19,4 +19,10 @@ output "app_id" {
 
 output "service_principal_id" {
   value = module.oidc.service_principal_id
+}
+
+output "resource_group_name" {
+  description = "resource group"
+  value = module.oidc.resource_group_name
+  
 }

@@ -22,6 +22,7 @@ deploy-bootstrap:
 	@echo " Saving oidc details..."
 	cd bootstrap && terraform output -raw app_id                  > outputs/.github_app_id
 	cd bootstrap && terraform output -raw service_principal_id    > outputs/.github_sp_id
+	cd bootstrap && terraform output -raw resource_group_name     > outputs/rg.tex
 
 	@echo " Generating providers.tf..."
 	bash scripts/generate_provider_file.sh
